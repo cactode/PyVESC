@@ -25,6 +25,7 @@ class VESC(object):
             raise ImportError("Need to install pyserial in order to use the VESCMotor class.")
 
         self.serial_port = serial.Serial(port=serial_port, baudrate=baudrate, timeout=timeout)
+        self.serial_lock = threading.Lock()
         if has_sensor:
             self.serial_port.write(encode(SetRotorPositionMode(SetRotorPositionMode.DISP_POS_OFF)))
 
@@ -84,12 +85,16 @@ class VESC(object):
         :param num_read_bytes: number of bytes to read for decoding response
         :return: decoded response from buffer
         """
+        self.serial_lock.acquire()
         self.serial_port.write(data)
         if num_read_bytes is not None:
             while self.serial_port.in_waiting <= num_read_bytes:
                 time.sleep(0.000001)  # add some delay just to help the CPU
             response, consumed = decode(self.serial_port.read(self.serial_port.in_waiting))
+            self.serial_lock.release()
             return response
+        else:
+            self.serial_lock.release()
 
     def set_rpm(self, new_rpm):
         """
